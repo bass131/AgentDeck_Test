@@ -1,0 +1,19 @@
+{
+  "name": "md-link-check",
+  "version": "0.1.0",
+  "description": "폴더 아래 마크다운 파일의 깨진 상대 링크를 찾는 CLI",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "md-link-check": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}
