@@ -16,3 +16,12 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - name: 빌드된 CLI 실행 확인 (G2 완료조건 11)
+        run: |
+          dir="$(mktemp -d)"
+          mkdir -p "$dir/docs"
+          printf '# a\n\n[x](./missing.md)\n' > "$dir/docs/a.md"
+          out="$(node dist/cli.js "$dir")" && code=0 || code=$?
+          printf 'stdout: %s\nexit: %s\n' "$out" "$code"
+          test "$out" = "docs/a.md:3: ./missing.md"
+          test "$code" = 1
