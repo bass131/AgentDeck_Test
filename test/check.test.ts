@@ -55,7 +55,7 @@ describe("완료조건 2 — 깨진 링크 한 개", () => {
 describe("완료조건 3 — anchor와 쿼리", () => {
   it("../b.md#anchor는 b.md가 있으면 통과한다", () => {
     write("sub/a.md", "[b](../b.md#anchor)\n");
-    write("b.md", "# b\n");
+    write("b.md", "# b\n\n## anchor\n"); // M02 G1: anchor를 검사하므로 slug가 anchor인 제목을 둔다
     expect(run([root])).toEqual({ stdout: "", stderr: "", exitCode: 0 });
   });
 
@@ -68,7 +68,7 @@ describe("완료조건 3 — anchor와 쿼리", () => {
 
   it("../b.md?v=1은 b.md가 있으면 통과한다", () => {
     write("sub/a.md", "[b](../b.md?v=1)\n[c](../b.md?v=1#top)\n");
-    write("b.md", "# b\n");
+    write("b.md", "# b\n\n## top\n"); // M02 G1: anchor를 검사하므로 slug가 top인 제목을 둔다
     expect(run([root])).toEqual({ stdout: "", stderr: "", exitCode: 0 });
   });
 
@@ -109,7 +109,8 @@ describe("완료조건 4 — 이미지와 폴더 대상", () => {
 });
 
 describe("완료조건 5 — 건너뛰는 대상", () => {
-  it("https·mailto·절대 경로·#section 링크는 대상이 없어도 출력되지 않는다", () => {
+  // M02 G1: `#section`은 이제 같은 파일 anchor로 검사하므로 여기서 뺐다(test/anchor.test.ts가 확인한다).
+  it("https·mailto·절대 경로·?tab=1·빈 대상 링크는 대상이 없어도 출력되지 않는다", () => {
     write(
       "a.md",
       [
@@ -117,7 +118,6 @@ describe("완료조건 5 — 건너뛰는 대상", () => {
         "[평문](http://example.com/x)",
         "[메일](mailto:someone@example.com)",
         "[절대](/abs.md)",
-        "[절](#section)",
         "[같은 파일 쿼리](?tab=1)",
         "[빈 대상]()",
         "",
