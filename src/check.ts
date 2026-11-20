@@ -1,9 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { collectAnchors } from "./anchors.js";
-import { extractLinks } from "./markdown.js";
+import { extractItems, normalizeLabel } from "./markdown.js";
 
-export { extractLinks, type FoundLink } from "./markdown.js";
+export { extractItems, type FoundItem } from "./markdown.js";
 
 export interface RunResult {
   stdout: string;
@@ -45,9 +45,21 @@ export function run(args: string[]): RunResult {
   for (const file of findMarkdownFiles(root)) {
     const relPath = path.relative(root, file).split(path.sep).join("/");
     const text = fs.readFileSync(file, "utf8");
-    for (const link of extractLinks(text)) {
-      if (isBroken(link.target, file, anchorsOf)) {
-        broken.push({ relPath, line: link.line, target: link.target });
+    const items = extractItems(text);
+    // 같은 파일의 정의만 본다. 정의는 참조보다 뒤에 있어도 된다.
+    // 같은 라벨이 여럿이면 먼저 나온 정의가 이기지만, 정의된 참조는 찍지 않고
+    // 정의 줄은 각자 검사하므로 어느 정의가 이기는지는 출력에 드러나지 않는다.
+    const defined = new Set<string>();
+    for (const item of items) {
+      if (item.kind === "definition") defined.add(normalizeLabel(item.label));
+    }
+    for (const item of items) {
+      if (item.kind === "reference") {
+        if (!defined.has(normalizeLabel(item.label))) {
+          broken.push({ relPath, line: item.line, target: `[${item.label}]` });
+        }
+      } else if (isBroken(item.target, file, anchorsOf)) {
+        broken.push({ relPath, line: item.line, target: item.target });
       }
     }
   }
