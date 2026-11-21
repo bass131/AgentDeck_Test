@@ -78,8 +78,17 @@ export function run(args: string[]): RunResult {
     return a.line - b.line;
   });
 
-  const stdout = broken.map((b) => `${b.relPath}:${b.line}: ${b.target}\n`).join("");
+  const stdout = parsed.format === "json" ? formatJson(broken) : formatText(broken);
   return { stdout, stderr: "", exitCode: broken.length > 0 ? 1 : 0 };
+}
+
+function formatText(broken: BrokenLink[]): string {
+  return broken.map((b) => `${b.relPath}:${b.line}: ${b.target}\n`).join("");
+}
+
+function formatJson(broken: BrokenLink[]): string {
+  const items = broken.map((b) => ({ file: b.relPath, line: b.line, target: b.target }));
+  return JSON.stringify(items, null, 2) + "\n";
 }
 
 function usageError(message: string): RunResult {
