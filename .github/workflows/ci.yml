@@ -16,7 +16,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - name: 빌드된 CLI 실행 확인 (G2 완료조건 11)
+      - name: 빌드된 CLI 실행 확인 (G2 완료조건 8)
         run: |
           dir="$(mktemp -d)"
           mkdir -p "$dir/docs"
@@ -24,4 +24,9 @@ jobs:
           out="$(node dist/cli.js "$dir")" && code=0 || code=$?
           printf 'stdout: %s\nexit: %s\n' "$out" "$code"
           test "$out" = "docs/a.md:3: ./missing.md"
+          test "$code" = 1
+          printf '[\n  {\n    "file": "docs/a.md",\n    "line": 3,\n    "target": "./missing.md"\n  }\n]\n' > "$dir/expected.json"
+          node dist/cli.js --format json "$dir" > "$dir/out.json" && code=0 || code=$?
+          printf 'json stdout:\n%s\nexit: %s\n' "$(cat "$dir/out.json")" "$code"
+          cmp "$dir/expected.json" "$dir/out.json"
           test "$code" = 1
