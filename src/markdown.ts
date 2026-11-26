@@ -59,21 +59,24 @@ export function classifyLines(text: string): ClassifiedLine[] {
 
 /**
  * 마크다운 본문에서 인라인 링크·이미지, 참조 정의, 참조를 문서 순서대로 뽑는다.
- * 펜스 코드 블록과 인라인 코드 안은 무시한다. 인라인 코드는 한 줄 안에서만 인식한다.
+ * 펜스 코드 블록, 들여쓴 코드 블록, 인라인 코드, 한 줄 HTML 주석 안은 무시한다.
+ * 인라인 코드와 HTML 주석은 한 줄 안에서만 인식한다.
  * 정의 줄은 줄 전체가 정의이므로 그 줄에서 링크·참조를 따로 찾지 않는다.
  * 한 줄 안에서는 링크 문법이 끝나는 위치 순이고, 겹치면 안쪽이 먼저다.
  */
 export function extractItems(text: string): FoundItem[] {
   const items: FoundItem[] = [];
-  classifyLines(text).forEach(({ line, kind }, index) => {
-    if (kind !== "text") return;
+  const classified = classifyLines(text);
+  const indentedCode = markIndentedCode(classified);
+  classified.forEach(({ line, kind }, index) => {
+    if (kind !== "text" || indentedCode[index]) return;
     const lineNumber = index + 1;
     const definition = parseDefinition(line);
     if (definition !== null) {
       items.push({ line: lineNumber, kind: "definition", ...definition });
       return;
     }
-    for (const found of scanLine(maskInlineCode(line), line)) {
+    for (const found of scanLine(maskHtmlComments(maskInlineCode(line)), line)) {
       items.push(
         found.kind === "link"
           ? { line: lineNumber, kind: "link", target: found.text }
@@ -82,6 +85,77 @@ export function extractItems(text: string): FoundItem[] {
     }
   });
   return items;
+}
+
+const LIST_ITEM = /^ {0,3}(?:[-*+]|[0-9]{1,9}[.)])(?:[ \t]|$)/;
+
+/** 줄 앞 공백·탭의 칸 수다. 탭 하나는 4칸으로 센다. */
+function indentWidth(line: string): number {
+  let width = 0;
+  for (const ch of line) {
+    if (ch === " ") width += 1;
+    else if (ch === "\t") width += 4;
+    else break;
+  }
+  return width;
+}
+
+/**
+ * 각 줄이 목록 밖의 들여쓴 코드 줄인지 표시한다. 링크 추출에서만 쓴다.
+ * anchor 모으기는 classifyLines의 kind만 보므로 이 판정의 영향을 받지 않는다.
+ *
+ * 들여쓴 줄(비어 있지 않고 앞 공백·탭이 4칸 이상)이 문서 처음, 빈 줄, 다른 들여쓴 코드 줄 바로
+ * 다음에 오고 목록 안이 아니면 코드 줄이다. 단락 줄 바로 다음이면 단락이 이어지는 것이다.
+ * 목록 항목 줄이 나오면 목록 안이고, 빈 줄 다음에 들여쓰기 3칸 이하이고 목록 항목이 아닌 줄이
+ * 나오면 목록이 끝난다. 펜스 줄과 펜스 안의 줄은 코드 줄이 아니고, 빈 줄로도 치지 않는다.
+ */
+function markIndentedCode(lines: ClassifiedLine[]): boolean[] {
+  const result: boolean[] = [];
+  let prev: "start" | "blank" | "code" | "other" = "start";
+  let inList = false;
+
+  for (const { line, kind } of lines) {
+    const blank = kind === "text" && line.trim() === "";
+    const indent = indentWidth(line);
+    let isCode = false;
+
+    if (kind !== "text") {
+      // 펜스를 여는 줄도 빈 줄 다음의 3칸 이하 비목록 줄이므로 목록을 끝낸다.
+      if (kind === "fence" && prev === "blank" && indent <= 3) inList = false;
+    } else if (blank) {
+      // 아래에서 prev를 blank로 둔다.
+    } else if (LIST_ITEM.test(line)) {
+      inList = true;
+    } else if (indent >= 4) {
+      isCode = !inList && (prev === "start" || prev === "blank" || prev === "code");
+    } else if (prev === "blank") {
+      inList = false;
+    }
+
+    result.push(isCode);
+    prev = blank ? "blank" : isCode ? "code" : "other";
+  }
+  return result;
+}
+
+/**
+ * 한 줄 HTML 주석 `<!-- ... -->` 구간을 같은 길이의 공백으로 바꾼다.
+ * `<!--` 뒤에 처음 나오는 `-->`까지가 한 구간이고, 같은 줄에서 닫히지 않은 `<!--`는 글자로 둔다.
+ * 인라인 코드를 가린 줄에 써야 인라인 코드 안의 `<!--`·`-->`를 주석으로 보지 않는다.
+ */
+export function maskHtmlComments(line: string): string {
+  let out = "";
+  let i = 0;
+  while (i < line.length) {
+    const open = line.indexOf("<!--", i);
+    if (open === -1) break;
+    const close = line.indexOf("-->", open + 4);
+    if (close === -1) break;
+    const end = close + 3;
+    out += line.slice(i, open) + " ".repeat(end - open);
+    i = end;
+  }
+  return out + line.slice(i);
 }
 
 /** 라벨 비교용 정규화다. 앞뒤 공백을 떼고, 연속 공백을 하나로 바꾸고, 소문자로 바꾼다. */
